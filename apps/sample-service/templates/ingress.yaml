@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "sample-service.fullname" . | default (printf "%s-%s" .Chart.Name .Release.Name) }}
+  name: {{ include "sample-service.fullname" . }}
 spec:
   ingressClassName: nginx
   rules:
@@ -11,6 +11,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "sample-service.fullname" . | default (printf "%s-%s" .Chart.Name .Release.Name) }}
+                name: {{ include "sample-service.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}

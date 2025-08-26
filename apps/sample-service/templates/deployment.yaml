@@ -1,3 +1,4 @@
+{{- if not .Values.canary.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata: { name: {{ include "sample.fullname" . }} }
@@ -20,3 +21,4 @@ spec:
           ports: [ { containerPort: 8000 } ]
           readinessProbe: { httpGet: { path: /healthz, port: 8000 } }
           resources: {{ toYaml .Values.resources | nindent 10 }}
+{{- end }}
