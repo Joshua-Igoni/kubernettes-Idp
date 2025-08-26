@@ -1,0 +1,8 @@
+apiVersion: v2
+name: sample-service
+version: 0.1.0
+type: application
+dependencies:
+  - name: rollout  # to make template composition clearer; optional
+    version: 0.0.1
+    repository: "file://."
