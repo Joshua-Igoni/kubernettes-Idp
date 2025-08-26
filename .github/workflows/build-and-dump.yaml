@@ -1,0 +1,35 @@
+name: Build & Bump Image Tag
+on:
+  push:
+    paths:
+      - 'apps/sample-service/**'
+      - '.github/workflows/build-and-bump.yaml'
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, contents: write }
+    env: { AWS_REGION: eu-central-1 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ secrets.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build & push
+        id: img
+        run: |
+          IMAGE="${{ secrets.ECR_REPO }}/kubernettes-sample:$(git rev-parse --short HEAD)"
+          docker build -t "$IMAGE" apps/sample-service
+          docker push "$IMAGE"
+          echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Bump Helm values (dev)
+        run: |
+          sudo apt-get update && sudo apt-get install -y yq
+          yq -i '.image.tag = "${{ steps.img.outputs.tag }}"' apps/demo-tenant/values-dev.yaml
+      - name: Commit & push
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name  "GitHub Actions"
+          git add apps/demo-tenant/values-dev.yaml
+          git commit -m "chore: bump dev image tag to ${{ steps.img.outputs.tag }}"
+          git push

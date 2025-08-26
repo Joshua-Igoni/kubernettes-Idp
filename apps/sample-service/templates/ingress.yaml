@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "sample-service.fullname" . }}
+  annotations:
+    {{- if eq .Values.host | default "" "" }}{{ else }}
+    cert-manager.io/cluster-issuer: letsencrypt
+    {{- end }}
+spec:
+  ingressClassName: nginx
+  {{- if .Values.host }}
+  tls:
+    - hosts: [ {{ .Values.host }} ]
+      secretName: {{ include "sample-service.fullname" . }}-tls
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: {{ include "sample-service.fullname" . }}, port: { number: {{ .Values.service.port }} } } }
+  {{- else }}
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: {{ include "sample-service.fullname" . }}, port: { number: {{ .Values.service.port }} } } }
+  {{- end }}

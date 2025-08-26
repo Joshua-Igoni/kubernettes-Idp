@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata: { name: {{ include "sample-service.fullname" . }} }
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}
+  selector:
+    app.kubernetes.io/name: {{ include "sample-service.name" . }}

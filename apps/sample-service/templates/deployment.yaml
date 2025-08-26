@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata: { name: {{ include "sample.fullname" . }} }
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25
+        - pause: { duration: 60 }
+        - setWeight: 50
+        - pause: { duration: 60 }
+  selector: { matchLabels: { app: {{ include "sample.name" . }} } }
+  template:
+    metadata: { labels: { app: {{ include "sample.name" . }} } }
+    spec:
+      containers:
+        - name: web
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports: [ { containerPort: 8000 } ]
+          readinessProbe: { httpGet: { path: /healthz, port: 8000 } }
+          resources: {{ toYaml .Values.resources | nindent 10 }}

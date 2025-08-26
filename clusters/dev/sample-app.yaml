@@ -6,11 +6,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOURUSER/kubernettes-idp
+    repoURL: https://github.com/joshua-igoni/kubernettes-idp
     targetRevision: main
     path: apps/sample-service
     helm:
-      valueFiles: [ "../../apps/demo-tenant/values-prod.yaml" ]
+      valueFiles:
+        - values/values-kind.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: demo

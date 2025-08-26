@@ -1,0 +1,5 @@
+image:
+  repository: 123456789012.dkr.ecr.eu-central-1.amazonaws.com/kubernettes-sample
+  tag: prod
+replicas: 3
+host: app.YOURDOMAIN.com

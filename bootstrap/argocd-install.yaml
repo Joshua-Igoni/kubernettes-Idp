@@ -1,0 +1,20 @@
+# Minimal upstream install, no Ingress (we'll let NGINX Ingress handle apps).
+apiVersion: v1
+kind: Namespace
+metadata: { name: argocd }
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: argocd-secret, namespace: argocd }
+type: Opaque
+data: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: argocd-application-controller, namespace: argocd }
+---
+# Use upstream manifest for stability (pinned version)
+# You can replace this with the official install if you prefer:
+#   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.10.6/manifests/install.yaml
+# For portability we keep components minimal here:
+# (If you prefer, reference the upstream URL in your README.)

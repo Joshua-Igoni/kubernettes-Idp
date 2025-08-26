@@ -1,0 +1,5 @@
+image:
+  repository: local/kubernettes-sample
+  tag: dev
+replicas: 1
+host: ""        # no hostname for kind; plain HTTP
