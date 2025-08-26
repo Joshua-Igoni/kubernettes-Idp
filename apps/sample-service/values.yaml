@@ -1,8 +1,8 @@
 image:
-  repository: 123456789012.dkr.ecr.eu-central-1.amazonaws.com/kubernettes-sample
-  tag: latest
-replicas: 2
-host: app.YOURDOMAIN.com   # for EKS; for kind use a host like app.kubernettes.local
+  repository: local/kubernettes-sample
+  tag: dev
+replicas: 1
+host: ""             # empty for kind
 service:
   port: 80
 containerPort: 8000
@@ -10,9 +10,26 @@ resources:
   requests: { cpu: "100m", memory: "128Mi" }
   limits:   { cpu: "500m", memory: "256Mi" }
 hpa:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 5
-  cpu: 70
+  enabled: false
 canary:
   enabled: true
+
+
+# image:
+#   repository: 123456789012.dkr.ecr.eu-central-1.amazonaws.com/kubernettes-sample
+#   tag: latest
+# replicas: 2
+# host: app.YOURDOMAIN.com   # for EKS; for kind use a host like app.kubernettes.local
+# service:
+#   port: 80
+# containerPort: 8000
+# resources:
+#   requests: { cpu: "100m", memory: "128Mi" }
+#   limits:   { cpu: "500m", memory: "256Mi" }
+# hpa:
+#   enabled: true
+#   minReplicas: 2
+#   maxReplicas: 5
+#   cpu: 70
+# canary:
+#   enabled: true

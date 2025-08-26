@@ -1,9 +1,10 @@
 apiVersion: v1
 kind: Service
-metadata: { name: {{ include "sample-service.fullname" . }} }
+metadata:
+  name: {{ include "sample-service.fullname" . | default (printf "%s-%s" .Chart.Name .Release.Name) }}
 spec:
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.containerPort }}
   selector:
-    app.kubernetes.io/name: {{ include "sample-service.name" . }}
+    app.kubernetes.io/name: {{ .Chart.Name }}

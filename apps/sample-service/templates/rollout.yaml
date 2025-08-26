@@ -1,19 +1,31 @@
 {{- if .Values.canary.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
-metadata: { name: {{ include "sample-service.fullname" . }} }
+metadata:
+  name: {{ include "sample-service.fullname" . | default (printf "%s-%s" .Chart.Name .Release.Name) }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
 spec:
   replicas: {{ .Values.replicas }}
-  selector: { matchLabels: { app.kubernetes.io/name: {{ include "sample-service.name" . }} } }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
   template:
-    metadata: { labels: { app.kubernetes.io/name: {{ include "sample-service.name" . }} } }
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
     spec:
       containers:
         - name: web
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          ports: [{ containerPort: {{ .Values.containerPort }} }]
-          readinessProbe: { httpGet: { path: /healthz, port: {{ .Values.containerPort }} } }
-          resources: {{- toYaml .Values.resources | nindent 10 }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.containerPort }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
   strategy:
     canary:
       steps:
