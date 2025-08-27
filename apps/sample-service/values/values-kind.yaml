@@ -1,6 +1,7 @@
 image:
   repository: local/kubernettes-sample
-  tag: dev2
+  tag: dev
+  pullPolicy: IfNotPresent
 replicas: 1
 host: "" # no hostname for kind; we’ll port-forward NGINX
 service:

@@ -54,57 +54,119 @@ argo:
 
 .PHONY: bootstrap
 bootstrap:
-	# App-of-Apps (points to clusters/dev)
 	kubectl apply -n argocd -f bootstrap/app-of-apps.yaml || true
-	# Platform child apps (ingress-nginx, argo-rollouts, external-secrets)
 	kubectl apply -f clusters/dev/application.yaml
-	# Sample app Application (must exist; includes CreateNamespace=true)
 	-kubectl apply -f clusters/dev/sample-app.yaml
-	# Kick Argo to reconcile everything
 	kubectl -n argocd annotate application ingress-nginx argocd.argoproj.io/refresh=hard --overwrite || true
 	kubectl -n argocd annotate application $(APP_RELEASE) argocd.argoproj.io/refresh=hard --overwrite || true
-	# Wait until the Application CRs are visible
 	kubectl -n argocd get application
 
 # ---------------- ingress-nginx (kind) ------------
 
 .PHONY: nginx
 nginx:
-	# Ensure Argo can create namespaces automatically
+	kubectl apply -f clusters/dev/application.yaml
 	kubectl -n argocd patch application ingress-nginx --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true"]}}}' || true
-	# Pre-create ns to avoid race if Argo is slow
 	kubectl create namespace ingress-nginx 2>/dev/null || true
-	# Switch the Service to NodePort for kind (health will go green)
-	kubectl -n argocd patch application ingress-nginx --type merge -p '{
-	  "spec": { "source": { "helm": { "values": "controller:\n  service:\n    type: NodePort\n    nodePorts:\n      http: 30080\n      https: 30443\n" } } }
-	}' || true
-	kubectl -n argocd annotate application ingress-nginx argocd.argoproj.io/refresh=hard --overwrite || true
-	# Wait for controller to be ready
-	kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=$(TIMEOUT) || \
-	  (echo "ingress-nginx-controller not found yet; checking resources..." && kubectl -n ingress-nginx get all && exit 1)
-	# Show resulting svc
-	kubectl -n ingress-nginx get svc ingress-nginx-controller -o wide
 
+	# Use Helm parameters (less fragile than a values block)
+	kubectl -n argocd patch application ingress-nginx --type merge -p '{
+	  "spec": {
+	    "source": {
+	      "helm": {
+	        "parameters": [
+	          { "name": "controller.service.type", "value": "NodePort" },
+	          { "name": "controller.service.nodePorts.http",  "value": "30080" },
+	          { "name": "controller.service.nodePorts.https", "value": "30443" }
+	        ]
+	      }
+	    }
+	  }
+	}'
+	# Trigger sync
+	kubectl -n argocd patch application ingress-nginx --type merge -p '{"operation":{"sync":{"prune":true}}}'
+
+	# Wait for ns, then for the Deployment to EXIST (Helm sometimes creates the Job first)
+	until kubectl get ns ingress-nginx >/dev/null 2>&1; do echo "waiting for namespace ingress-nginx..."; sleep 3; done
+	for i in {1..60}; do \
+	  if kubectl -n ingress-nginx get deploy/ingress-nginx-controller >/dev/null 2>&1; then break; fi; \
+	  echo "waiting for deploy/ingress-nginx-controller to be created..."; sleep 5; \
+	done
+	kubectl -n ingress-nginx get deploy/ingress-nginx-controller >/dev/null 2>&1 || \
+	  (echo "ERROR: deploy/ingress-nginx-controller not created by Helm yet"; kubectl -n argocd describe application ingress-nginx | sed -n '1,140p'; exit 1)
+
+	# Now wait for rollout
+	kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=$(TIMEOUT)
+
+	# Ensure Service exists & is NodePort (create once if Helm still catching up)
+	if ! kubectl -n ingress-nginx get svc ingress-nginx-controller >/dev/null 2>&1; then \
+		cat <<-'YAML' | kubectl apply -n ingress-nginx -f - ;\
+		apiVersion: v1
+		kind: Service
+		metadata:
+		  name: ingress-nginx-controller
+		  labels:
+		    app.kubernetes.io/name: ingress-nginx
+		    app.kubernetes.io/instance: ingress-nginx
+		spec:
+		  type: NodePort
+		  selector:
+		    app.kubernetes.io/name: ingress-nginx
+		    app.kubernetes.io/instance: ingress-nginx
+		    app.kubernetes.io/component: controller
+		  ports:
+		    - name: http
+		      port: 80
+		      targetPort: http
+		      nodePort: 30080
+		    - name: https
+		      port: 443
+		      targetPort: https
+		      nodePort: 30443
+		YAML
+	fi
+	@echo "ingress-nginx Service:"
+	kubectl -n ingress-nginx get svc ingress-nginx-controller -o wide
 # -------------------- sample app ------------------
 
 .PHONY: app
 app:
-	# Build and load local image into kind
+	@echo "Using image $(LOCAL_IMAGE):$(LOCAL_TAG) with values $(APP_VALUES_KIND)"
 	docker build -t $(LOCAL_IMAGE):$(LOCAL_TAG) $(APP_CHART_PATH)
 	kind load docker-image $(LOCAL_IMAGE):$(LOCAL_TAG) --name $(CLUSTER)
-	# Force Argo to use our kind values (lives inside the chart)
+
+	# Drive values via Helm parameters so Argo always uses local image
 	kubectl -n argocd patch application $(APP_RELEASE) --type merge -p '{
-	  "spec":{"source":{"helm":{"valueFiles":["$(APP_VALUES_KIND)"]}}}
-	}' || true
-	# Ensure Argo can create the demo namespace and prune last
-	kubectl -n argocd patch application $(APP_RELEASE) --type merge -p '{
-	  "spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true","PruneLast=true"]}}
-	}' || true
-	# Refresh app and wait for rollout
-	kubectl -n argocd annotate application $(APP_RELEASE) argocd.argoproj.io/refresh=hard --overwrite || true
-	# Wait for namespace to exist
+	  "spec": {
+	    "source": {
+	      "helm": {
+	        "valueFiles": ["$(APP_VALUES_KIND)"],
+	        "parameters": [
+	          { "name": "image.repository", "value": "$(LOCAL_IMAGE)" },
+	          { "name": "image.tag",        "value": "$(LOCAL_TAG)" },
+	          { "name": "image.pullPolicy", "value": "IfNotPresent" },
+	          { "name": "imagePullSecrets", "value": "[]" }
+	        ]
+	      }
+	    },
+	    "syncPolicy": { "automated": { "prune": true, "selfHeal": true }, "syncOptions": ["CreateNamespace=true","PruneLast=true"] }
+	  }
+	}'
+	kubectl -n argocd patch application $(APP_RELEASE) --type merge -p '{"operation":{"sync":{"prune":true}}}'
+
+	# Wait for ns, then for the Rollout to EXIST (avoid racing)
 	until kubectl get ns $(APP_NS) >/dev/null 2>&1; do echo "waiting for $(APP_NS) ns..."; sleep 3; done
-	kubectl -n $(APP_NS) get rollout,svc,ingress || true
+	for i in {1..40}; do \
+	  if kubectl -n $(APP_NS) get rollout/$(APP_NAME)-$(APP_RELEASE) >/dev/null 2>&1; then break; fi; \
+	  echo "waiting for rollout/$(APP_NAME)-$(APP_RELEASE) to be created..."; sleep 3; \
+	done
+	kubectl -n $(APP_NS) get rollout/$(APP_NAME)-$(APP_RELEASE) >/dev/null 2>&1 || \
+	  (echo "ERROR: rollout not created yet"; kubectl -n argocd describe application $(APP_RELEASE) | sed -n '1,160p'; exit 1)
+
+	# Show current image & policy then wait for rollout
+	kubectl -n $(APP_NS) get pods -l app.kubernetes.io/name=$(APP_NAME) -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[0].image}{"  policy="}{.spec.containers[0].imagePullPolicy}{"\n"}{end}' || true
+	kubectl -n $(APP_NS) rollout status rollout/$(APP_NAME)-$(APP_RELEASE) --timeout=$(TIMEOUT) || true
+	kubectl -n $(APP_NS) get rollout,svc,pods -o wide
 
 # -------------------- convenience -----------------
 
