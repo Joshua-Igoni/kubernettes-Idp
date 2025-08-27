@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+dist/
+node_modules/
+.pytest_cache/
+.env
+db.sqlite3
+charts/               # if you ever vendor dependencies
+.helm-cache/
+.helm/
