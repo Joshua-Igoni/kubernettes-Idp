@@ -1,8 +1,8 @@
 image:
   repository: local/kubernettes-sample
-  tag: dev
+  tag: dev2
 replicas: 1
-host: ""             # no hostname for kind; we’ll port-forward NGINX
+host: "" # no hostname for kind; we’ll port-forward NGINX
 service:
   port: 80
 containerPort: 8000
